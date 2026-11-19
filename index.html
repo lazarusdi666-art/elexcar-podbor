@@ -26,6 +26,7 @@
   --accent:#c6ef2b; --fill:#c6ef2b; --fill-ink:#0f1600; --accent-soft:#25300d;
   --good:#5fd39a; --good-soft:#123426; --warn:#f0b357; --warn-soft:#382a12; --bad:#ff8a7e; --bad-soft:#3b1a17; color-scheme:dark }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{height:100%}
 body{margin:0;background:var(--stage);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;display:grid;place-items:center;
   padding-block:16px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
@@ -171,6 +172,10 @@ h1,h2,h3{margin:0;text-wrap:balance}
 .form textarea{min-height:70px;resize:vertical}
 .form .wide{grid-column:1/-1}
 .sent{display:grid;gap:8px}
+.okbox{display:grid;gap:10px;background:var(--good-soft);color:var(--ink);border:1px solid var(--good);border-radius:14px;padding:13px 14px;font-size:14px}
+.okbox > b{color:var(--good);font-size:16px}
+.steps{margin:0;padding-left:20px;display:grid;gap:5px}
+.msg span{user-select:text;-webkit-user-select:text}
 .src{font-size:12.5px;color:var(--muted)} .src a{color:var(--accent);font-weight:600;text-decoration:none}
 
 /* сравнение */
@@ -573,10 +578,15 @@ async function deliverLead(lines, meta) {
   const u = TG && TG.initDataUnsafe && TG.initDataUnsafe.user; if (u && u.username) lines.push("@" + u.username);
   const text = lines.join("\n"); track("lead", meta);
   if (CFG.api) { try { const r = await fetch(CFG.api + "/lead", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text, initData: TG ? TG.initData : "", ...meta }) }); if (r.ok) return { mode: "api", text }; } catch (e) {} }
-  let copied = false; if (CFG.managerIsBot) { try { await navigator.clipboard.writeText(text); copied = true; } catch (e) {} }
-  const url = CFG.managerIsBot ? `https://t.me/${CFG.manager}` : `https://t.me/${CFG.manager}?text=${encodeURIComponent(text)}`;
-  if (TG) TG.openTelegramLink(url); else window.open(url, "_blank", "noopener");
-  return { mode: CFG.managerIsBot ? (copied ? "copied" : "manual") : "chat", text };
+  if (!CFG.managerIsBot) { openChat(`https://t.me/${CFG.manager}?text=${encodeURIComponent(text)}`); return { mode: "chat", text }; }
+  // в бот текст подставить нельзя: копируем и сначала объясняем, что делать, чат открываем по кнопке
+  return { mode: (await copyText(text)) ? "copied" : "manual", text, url: `https://t.me/${CFG.manager}` };
+}
+function openChat(url) { if (TG) TG.openTelegramLink(url); else window.open(url, "_blank", "noopener"); }
+async function copyText(text) {
+  try { if (navigator.clipboard && await Promise.race([navigator.clipboard.writeText(text).then(() => true), new Promise(r => setTimeout(() => r(false), 1200))])) return true; } catch (e) {}
+  try { const t = el("textarea"); t.value = text; t.setAttribute("readonly", ""); t.style.cssText = "position:fixed;opacity:0;top:0;left:0";
+    document.body.append(t); t.select(); const ok = document.execCommand("copy"); t.remove(); return ok; } catch (e) { return false; }
 }
 function leadForm(title, summary, meta) {
   const box = el("div", "stack"); box.append(el("b", null, title));
@@ -589,11 +599,22 @@ function leadForm(title, summary, meta) {
   go.onclick = async () => {
     const lines = [...summary(), CITY ? "Город: " + CITY : "", [ni.value, pi.value].filter(Boolean).join(", ")].filter(Boolean);
     const r = await deliverLead(["Заявка из приложения ElexCar", ...lines], meta ? meta() : {});
-    const m = el("div", "msg"); m.append(el("span", "from", r.mode === "api" ? "Заявка отправлена менеджеру" : "Так заявка придёт менеджеру"));
+    const m = el("div", "msg"); m.append(el("span", "from", r.mode === "api" ? "Заявка отправлена менеджеру" : "Текст заявки"));
     for (const line of lines) m.append(el("span", null, line));
     m.append(el("time", null, new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })));
-    const note = { api: "Менеджер напишет вам в Telegram.", copied: "Текст заявки скопирован — вставьте его в чат с менеджером.", manual: "Скопируйте текст выше и отправьте менеджеру.", chat: "Открываем чат с менеджером, текст уже вставлен — нажмите «Отправить»." }[r.mode];
-    out.replaceChildren(m, el("p", "note", note));
+    if (r.mode === "api") { out.replaceChildren(el("div", "okbox", "✓ Заявка у менеджера. Он напишет вам в Telegram."), m); go.hidden = true; return; }
+    if (r.mode === "chat") { out.replaceChildren(el("p", "note", "Открыли чат с менеджером — текст уже вставлен, нажмите «Отправить»."), m); return; }
+    const box2 = el("div", "okbox");
+    box2.append(el("b", null, r.mode === "copied" ? "✓ Заявка скопирована" : "Осталось отправить заявку менеджеру"));
+    const steps = el("ol", "steps");
+    for (const t of [r.mode === "copied" ? "Нажмите «Открыть чат с менеджером»" : "Нажмите «Скопировать заявку», потом «Открыть чат с менеджером»",
+      "В чате нажмите на поле сообщения и выберите «Вставить»", "Нажмите «Отправить» — менеджер ответит в этом же чате"]) steps.append(el("li", null, t));
+    const open = el("button", "btn pri full", "Открыть чат с менеджером"); open.type = "button"; open.onclick = () => openChat(r.url);
+    const again = el("button", "btn sec full", r.mode === "copied" ? "Скопировать ещё раз" : "Скопировать заявку"); again.type = "button";
+    again.onclick = async () => { const ok = await copyText(r.text); again.textContent = ok ? "✓ Скопировано" : "Не получилось — выделите текст ниже"; };
+    box2.append(steps, open, again);
+    out.replaceChildren(box2, m); go.hidden = true;
+    box2.scrollIntoView({ block: "nearest", behavior: "smooth" });
   };
   box.append(f, go, out); return box;
 }
