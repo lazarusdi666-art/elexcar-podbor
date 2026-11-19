@@ -1,0 +1,823 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>ElexCar · подбор авто</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Onest:wght@400;500;600;700&display=swap">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+/* Мини-приложение ElexCar. Каталог из постов канала с ценой в городе клиента, галерея, сроки, кредит,
+   подбор, избранное и сравнение, заявки менеджеру. На телефоне и в Telegram — во весь экран, на компьютере — экран-телефон. */
+:root{
+  --stage:#d9dee2; --bg:#f4f6f3; --surface:#ffffff; --ink:#0f1410; --muted:#5d665f; --line:#dde3dc;
+  --accent:#3d6a00; --fill:#c6ef2b; --fill-ink:#0f1600; --accent-soft:#eaf7c4;
+  --good:#13724a; --good-soft:#dff3e8; --warn:#9a5a00; --warn-soft:#fbefd9; --bad:#b4261b; --bad-soft:#fce6e3;
+  --plate:#ffffff; --plate-ink:#0d0f12;
+  --display:"Oswald","Arial Narrow",system-ui,sans-serif; --body:"Onest",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --stage:#030503; --bg:#0c0f0c; --surface:#161b16; --ink:#eef3ea; --muted:#9aa597; --line:#262e25;
+  --accent:#c6ef2b; --fill:#c6ef2b; --fill-ink:#0f1600; --accent-soft:#25300d;
+  --good:#5fd39a; --good-soft:#123426; --warn:#f0b357; --warn-soft:#382a12; --bad:#ff8a7e; --bad-soft:#3b1a17; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --stage:#030503; --bg:#0c0f0c; --surface:#161b16; --ink:#eef3ea; --muted:#9aa597; --line:#262e25;
+  --accent:#c6ef2b; --fill:#c6ef2b; --fill-ink:#0f1600; --accent-soft:#25300d;
+  --good:#5fd39a; --good-soft:#123426; --warn:#f0b357; --warn-soft:#382a12; --bad:#ff8a7e; --bad-soft:#3b1a17; color-scheme:dark }
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--stage);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;display:grid;place-items:center;
+  padding-block:16px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+button,input,select,textarea{font:inherit;color:inherit}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,.card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.phone{position:relative;width:min(100%,calc((100dvh - 32px) * 9 / 16));aspect-ratio:9/16;max-height:calc(100dvh - 32px);max-width:100%;container-type:inline-size;
+  background:var(--bg);border-radius:30px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 30px 80px rgba(5,10,5,.28),0 0 0 1px var(--line)}
+@media (max-width:560px){ body{display:block;padding:0} .phone{width:100%;height:100%;aspect-ratio:auto;max-height:none;border-radius:0;box-shadow:none} }
+body.tg{display:block;padding:0} body.tg .phone{width:100%;height:100%;aspect-ratio:auto;max-height:none;border-radius:0;box-shadow:none}
+.gut{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-block:12px 10px;border-bottom:1px solid var(--line);background:var(--bg);flex:none}
+.logo{display:flex;align-items:center;gap:8px;font:700 15px var(--display);letter-spacing:.06em;text-transform:uppercase}
+.logo i{width:24px;height:24px;border-radius:50%;background:var(--fill);display:grid;place-items:center;color:var(--fill-ink);font:700 12px var(--display);font-style:normal}
+.top small{font-size:12px;color:var(--muted);text-align:right}
+.test{display:flex;gap:8px;align-items:center;justify-content:space-between;background:var(--accent-soft);font-size:12px;padding-block:7px;flex:none}
+.test a{color:var(--accent);font-weight:700;text-decoration:none;white-space:nowrap}
+.views{position:relative;flex:1;min-height:0}
+.view{position:absolute;inset:0;overflow-y:auto;overscroll-behavior:contain;padding-block:16px 24px}
+.tabs{flex:none;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));border-top:1px solid var(--line);background:var(--surface);padding-bottom:env(safe-area-inset-bottom,0px)}
+.tabs button{border:none;background:none;padding:8px 2px 9px;display:grid;justify-items:center;gap:3px;font-size:11px;font-weight:600;color:var(--muted);cursor:pointer;min-height:54px;position:relative}
+.tabs svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.tabs button[aria-selected="true"]{color:var(--accent)}
+.tabs .badge{position:absolute;top:5px;left:calc(50% + 6px);min-width:16px;height:16px;border-radius:8px;background:var(--fill);color:var(--fill-ink);font:700 10px/16px var(--body);padding:0 4px}
+h1,h2,h3{margin:0;text-wrap:balance}
+.eyebrow{font:600 11.5px var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.muted{color:var(--muted)}
+.note{font-size:12.5px;color:var(--muted);margin:0}
+.sec-h{display:grid;gap:6px;margin-bottom:14px}
+.sec-h h2{font-family:var(--display);font-weight:600;font-size:26px;line-height:1.1}
+.stack{display:grid;gap:12px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:12px;padding:12px 16px;font:700 14.5px var(--body);border:1px solid transparent;cursor:pointer;text-decoration:none;min-height:46px}
+.btn.pri{background:var(--fill);color:var(--fill-ink)}
+.btn.sec{background:var(--surface);color:var(--ink);border-color:var(--line)}
+.btn.full{width:100%}
+.btn.sm{min-height:38px;padding:8px 12px;font-size:13.5px}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.msg{background:var(--surface);border:1px solid var(--line);border-radius:16px 16px 16px 4px;padding:11px 13px;font-size:13.5px;display:grid;gap:3px;max-width:96%;box-shadow:0 6px 18px rgba(10,20,10,.08)}
+.msg .from{font-size:11.5px;font-weight:700;color:var(--accent)}
+.msg time{font-size:11px;color:var(--muted);justify-self:end}
+.toast{position:absolute;left:50%;bottom:70px;transform:translate(-50%,20px);background:var(--ink);color:var(--bg);font-size:13.5px;font-weight:600;padding:9px 14px;border-radius:12px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:40;max-width:90%;text-align:center}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+
+/* номерной знак */
+.plate{display:inline-flex;align-items:stretch;border:2px solid var(--plate-ink);border-radius:6px;background:var(--plate);color:var(--plate-ink);overflow:hidden;font-variant-numeric:tabular-nums;white-space:nowrap}
+.plate b{font:600 19px/1 var(--display);padding:6px 8px 5px;letter-spacing:.02em}
+.plate small{border-left:2px solid var(--plate-ink);display:grid;place-items:center;align-content:center;padding:2px 5px;font:600 10px/1.05 var(--display);text-align:center}
+.plate small em{font-style:normal;font-size:7.5px;letter-spacing:.06em}
+.plate.lg b{font-size:26px;padding:8px 10px 7px}
+
+/* каталог */
+.filters{position:sticky;top:-16px;z-index:4;background:var(--bg);margin-top:-16px;padding-top:14px;padding-bottom:10px;display:grid;gap:10px;border-bottom:1px solid var(--line)}
+.chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+.chips.wrap{flex-wrap:wrap;overflow:visible}
+.chip{flex:none;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 12px;font-size:13px;font-weight:600;cursor:pointer;min-height:34px}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.range{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;font-size:13px;color:var(--muted)}
+.range input{width:100%;accent-color:var(--accent);min-width:0}
+.range output{color:var(--ink);font-weight:700;font-variant-numeric:tabular-nums;min-width:10ch;text-align:right}
+.frow{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13px}
+.tog{display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13.5px}
+.tog input{accent-color:var(--accent);width:17px;height:17px}
+.cityrow{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:center;font-size:13px;color:var(--muted)}
+.citysel,.sel{font-size:14.5px;font-weight:600;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px;width:100%;min-width:0;color:var(--ink)}
+.fbtn{display:flex;gap:8px;align-items:center}
+.fbtn .sel{width:auto;flex:1}
+.fpanel{display:grid;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px}
+.fpanel[hidden]{display:none}
+.filters.open{position:static;margin-top:0;padding-top:0}
+.lbl2{font-size:12px;color:var(--muted);margin-bottom:5px}
+.list{display:grid;gap:14px;margin-top:14px}
+.card{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:18px;overflow:hidden;display:grid;text-align:left;cursor:pointer;width:100%}
+.card.sold{opacity:.55}
+.ph{position:relative;aspect-ratio:16/9;max-width:100%;background:var(--line);overflow:hidden}
+.ph img{width:100%;height:100%;object-fit:cover;display:block}
+.tags{position:absolute;left:10px;top:10px;right:52px;display:flex;flex-wrap:wrap;gap:6px}
+.tag{font-size:11.5px;font-weight:700;padding:4px 8px;border-radius:7px;background:var(--surface);color:var(--ink)}
+.tag.good{background:var(--good-soft);color:var(--good)} .tag.warn{background:var(--warn-soft);color:var(--warn)} .tag.acc{background:var(--fill);color:var(--fill-ink)} .tag.bad{background:var(--bad-soft);color:var(--bad)}
+.heart{position:absolute;right:8px;top:8px;width:40px;height:40px;border-radius:50%;border:none;background:rgba(10,14,10,.55);color:#fff;display:grid;place-items:center;cursor:pointer;z-index:2}
+.heart svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:2}
+.heart[aria-pressed="true"]{color:var(--fill)} .heart[aria-pressed="true"] svg{fill:currentColor}
+.cnt{position:absolute;right:10px;bottom:10px;font-size:11.5px;font-weight:700;background:rgba(10,14,10,.6);color:#fff;border-radius:7px;padding:3px 7px}
+.cb{padding:11px 13px 13px;display:grid;gap:8px}
+.cb h3{font-family:var(--display);font-weight:600;font-size:20px;letter-spacing:.01em}
+.cb .trim{font-size:13px;color:var(--muted);margin-top:-6px}
+.specs{display:flex;flex-wrap:wrap;gap:3px 12px;font-size:13px;font-weight:600}
+.pr{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;border-top:1px solid var(--line);padding-top:10px}
+.pr .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}
+.pr .mo{font-size:12px;color:var(--muted);text-align:right}
+.pr .mo b{display:block;color:var(--ink);font-size:13.5px;white-space:nowrap}
+.via{font-size:12px;color:var(--muted);margin-top:6px}
+.empty{color:var(--muted);text-align:center;padding:30px 10px}
+
+/* кейсы */
+.hero{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:14px}
+.hero div{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px 12px;display:grid}
+.hero b{font:700 26px/1.1 var(--display);color:var(--accent)}
+.hero span{font-size:12.5px;color:var(--muted)}
+.case{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;padding:11px 0;border-bottom:1px solid var(--line);align-items:center}
+.case b{font-size:14.5px} .case span{font-size:12.5px;color:var(--muted)} .case .plate{grid-row:1/3;grid-column:2}
+
+/* лист машины */
+.scrim{position:absolute;inset:0;background:rgba(5,9,5,.55);z-index:20;opacity:0;pointer-events:none;transition:opacity .2s}
+.scrim.on{opacity:1;pointer-events:auto}
+.sheet{position:absolute;left:0;right:0;bottom:0;max-height:94%;z-index:21;background:var(--bg);border-radius:22px 22px 0 0;overflow-y:auto;transform:translateY(105%);transition:transform .28s cubic-bezier(.2,.8,.2,1);padding-bottom:max(20px,env(safe-area-inset-bottom,0px))}
+.sheet.on{transform:none}
+.sheet .grab{position:sticky;top:0;z-index:3;display:flex;justify-content:flex-end;padding:8px 8px 0;height:0}
+.sheet .x{width:40px;height:40px;border-radius:50%;border:none;background:var(--surface);font-size:22px;line-height:1;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.gal{position:relative}
+.gal .strip{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;aspect-ratio:4/3;background:var(--line)}
+.gal .strip::-webkit-scrollbar{display:none}
+.gal img{flex:0 0 100%;width:100%;height:100%;object-fit:cover;scroll-snap-align:start;display:block}
+.gal .dots{position:absolute;left:0;right:0;bottom:10px;display:flex;justify-content:center;gap:5px;pointer-events:none}
+.gal .dots i{width:6px;height:6px;border-radius:3px;background:rgba(255,255,255,.55)}
+.gal .dots i.on{width:16px;background:#fff}
+.credit{font-size:11px;color:var(--muted)} .credit a{color:inherit}
+.sb{display:grid;gap:14px;padding-top:14px}
+.sb h2{font:600 28px/1.08 var(--display)}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+.facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 14px;margin:0;font-size:13.5px}
+.facts div{min-width:0} .facts dt{color:var(--muted);font-size:12px} .facts dd{margin:0;font-weight:600;overflow-wrap:anywhere}
+.age{border-radius:12px;padding:10px 12px;font-size:13.5px}
+.age.good{background:var(--good-soft);color:var(--good)} .age.warn{background:var(--warn-soft);color:var(--warn)} .age.bad{background:var(--bad-soft);color:var(--bad)}
+.h3{font:600 19px/1.2 var(--display);letter-spacing:.01em;margin-top:6px}
+.brk{display:grid;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:4px 14px 14px}
+.brk .r{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px}
+.brk .r b{font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
+.brk .r small{grid-column:1/-1;color:var(--muted);font-size:12px;line-height:1.35}
+.brk .r.hot b{color:var(--bad)}
+.brk .sum{display:flex;justify-content:space-between;align-items:center;gap:10px;padding-top:12px;flex-wrap:wrap;font-weight:700}
+.tl{list-style:none;margin:0;padding:4px 14px 8px;background:var(--surface);border:1px solid var(--line);border-radius:16px;display:grid}
+.tl li{display:grid;grid-template-columns:14px minmax(0,1fr) auto;gap:10px;align-items:start;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px}
+.tl li:last-child{border-bottom:none}
+.tl li::before{content:"";width:10px;height:10px;border-radius:50%;border:2px solid var(--accent);margin-top:5px;box-sizing:border-box}
+.tl li.fin::before{background:var(--fill);border-color:var(--fill)}
+.tl small{color:var(--muted);font-size:12px;white-space:nowrap}
+.tl li.fin b{font-size:15px}
+.loan{display:grid;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:12px 14px}
+.loan .big{font:700 26px/1 var(--display);color:var(--accent)}
+.form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.form label{display:grid;gap:4px;font-size:12.5px;color:var(--muted);min-width:0}
+.form input,.form select,.form textarea{font-size:15px;font-weight:500;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px;width:100%;min-width:0;color:var(--ink)}
+.form textarea{min-height:70px;resize:vertical}
+.form .wide{grid-column:1/-1}
+.sent{display:grid;gap:8px}
+.src{font-size:12.5px;color:var(--muted)} .src a{color:var(--accent);font-weight:600;text-decoration:none}
+
+/* сравнение */
+.cmpw{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+.cmpt{border-collapse:collapse;width:100%;min-width:420px;font-size:13px}
+.cmpt th,.cmpt td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.cmpt th{color:var(--muted);font-weight:600;font-size:12px;white-space:nowrap;position:sticky;left:0;background:var(--surface)}
+.cmpt img{width:110px;aspect-ratio:4/3;object-fit:cover;border-radius:8px;display:block}
+.cmpt td.best{color:var(--good);font-weight:700}
+
+/* менеджер */
+.adm h3{font:600 18px var(--display);margin-bottom:6px}
+.adm ol{margin:0;padding-left:20px;display:grid;gap:4px;font-size:14px}
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.tiles div{background:var(--bg);border-radius:12px;padding:10px;display:grid}
+.tiles b{font:700 24px var(--display)} .tiles span{font-size:12px;color:var(--muted)}
+.bars{display:grid;gap:6px;font-size:13px}
+.bars div{display:grid;grid-template-columns:minmax(0,1fr) 44px;gap:8px;align-items:center}
+.bars i{display:block;height:8px;border-radius:4px;background:var(--fill);margin-top:3px}
+.sold-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+@media (prefers-reduced-motion:reduce){.sheet,.scrim,.toast{transition:none}}
+</style>
+</head>
+<body>
+<div class="phone" id="app">
+  <div class="top gut">
+    <div class="logo"><i>E</i><span>ElexCar</span></div>
+    <small id="topnote">Подбор авто</small>
+  </div>
+  <div class="test gut" id="testbar"><span>Тестовая версия для ElexCar</span><a href="#admin">Для менеджера →</a></div>
+
+  <div class="views">
+    <!-- Каталог -->
+    <section class="view gut" id="v-catalog" aria-label="Каталог">
+      <div class="filters">
+        <label class="cityrow" id="cityRow">Ваш город</label>
+        <div class="chips" id="chips" role="group" aria-label="Кузов"></div>
+        <label class="range" for="budget">До <input type="range" id="budget" min="0" max="7" step="1"><output id="bout"></output></label>
+        <div class="fbtn"><button class="btn sec sm" type="button" id="fToggle" aria-expanded="false">Фильтры</button><select class="sel" id="sort" aria-label="Сортировка">
+          <option value="price">Сначала дешевле</option><option value="-price">Сначала дороже</option><option value="year">Сначала новее</option><option value="km">Меньше пробег</option><option value="days">Быстрее приедет</option></select></div>
+        <div class="fpanel" id="fpanel" hidden>
+          <div><div class="lbl2">Марка</div><div class="chips wrap" id="fBrand"></div></div>
+          <div><div class="lbl2">Откуда</div><div class="chips wrap" id="fFrom"></div></div>
+          <div><div class="lbl2">Двигатель</div><div class="chips wrap" id="fFuel"></div></div>
+          <div class="form">
+            <label>Год от <select id="fYear"></select></label>
+            <label>Пробег до <select id="fKm"><option value="">любой</option><option value="200">новые</option><option value="30000">30 000 км</option><option value="50000">50 000 км</option><option value="80000">80 000 км</option></select></label>
+          </div>
+          <label class="tog"><input type="checkbox" id="fAwd"> Только полный привод</label>
+          <label class="tog"><input type="checkbox" id="lgota"> До 160 л.с. — льготный утиль</label>
+          <label class="tog"><input type="checkbox" id="fSold"> Показывать проданные</label>
+          <button class="btn sec sm" type="button" id="fReset">Сбросить фильтры</button>
+        </div>
+        <div class="frow"><span class="muted" id="count"></span><span class="muted" id="activeF"></span></div>
+      </div>
+      <div class="list" id="list"></div>
+      <div class="panel" style="margin-top:14px;display:grid;gap:8px"><b>Не нашли подходящую?</b><span class="muted" style="font-size:13.5px">Подберём под ваш бюджет из 500 000+ машин в Китае и Корее — бесплатно.</span><button class="btn pri" type="button" data-go="pick">Оставить запрос на подбор</button></div>
+      <p class="note" style="margin-top:14px" id="catNote"></p>
+    </section>
+
+    <!-- Подбор -->
+    <section class="view gut" id="v-pick" aria-label="Подбор под запрос" hidden>
+      <div class="sec-h"><div class="eyebrow">Бесплатный подбор</div><h2>Подберём машину под ваш бюджет</h2><p class="note">Заполните, что важно, — менеджер пришлёт варианты с ценой под ключ в вашем городе.</p></div>
+      <div class="stack">
+        <div class="panel"><div class="form">
+          <label>Бюджет от, ₽ <select id="p_from"></select></label>
+          <label>до, ₽ <select id="p_to"></select></label>
+          <label class="wide">Город <span id="p_city"></span></label>
+          <div class="wide"><div class="lbl2">Кузов</div><div class="chips wrap" id="p_body"></div></div>
+          <label class="wide">Когда нужна <select id="p_when"><option>Как можно скорее</option><option>В течение 1–2 месяцев</option><option>Не спешу, жду лучший вариант</option></select></label>
+          <label class="wide">Пожелания <textarea id="p_wish" placeholder="Например: кроссовер, полный привод, светлый салон, не старше 2022"></textarea></label>
+        </div></div>
+        <div class="panel" id="p_match" style="display:grid;gap:8px"></div>
+        <div id="p_lead"></div>
+      </div>
+    </section>
+
+    <!-- Избранное -->
+    <section class="view gut" id="v-fav" aria-label="Избранное" hidden>
+      <div class="sec-h"><div class="eyebrow">Избранное</div><h2>Ваши машины</h2><p class="note">Отметьте до трёх машин галочкой «Сравнить» — покажем рядом.</p></div>
+      <div class="stack" id="favList"></div>
+      <div id="cmpOut" style="margin-top:14px"></div>
+    </section>
+
+    <!-- Посчитать -->
+    <section class="view gut" id="v-calc" aria-label="Посчитать свою машину" hidden>
+      <div class="sec-h"><div class="eyebrow">Своя машина из Китая</div><h2>Посчитать под ключ</h2><p class="note">Нашли машину на Che168, Dongchedi или Autohome — введите цифры из объявления.</p></div>
+      <div class="stack">
+        <div class="panel"><div class="form">
+          <label class="wide" for="o_url">Ссылка на объявление <input id="o_url" type="url" inputmode="url" placeholder="https://www.che168.com/…"></label>
+          <label for="o_cny">Цена в Китае, ¥ <input id="o_cny" type="number" inputmode="numeric" min="0" step="100" value="120000"></label>
+          <label for="o_date">Дата выпуска <input id="o_date" type="month" value="2023-03"></label>
+          <label for="o_cc">Объём, см³ <input id="o_cc" type="number" inputmode="numeric" min="0" step="1" value="1498"></label>
+          <label for="o_hp">Мощность, л.с. <input id="o_hp" type="number" inputmode="numeric" min="0" step="1" value="150"></label>
+          <label class="wide" for="o_city">Куда везём <select id="o_city"></select></label>
+        </div></div>
+        <div id="ownOut" class="stack"></div>
+      </div>
+    </section>
+
+    <!-- Привезли -->
+    <section class="view gut" id="v-cases" aria-label="Привезли клиентам" hidden>
+      <div class="sec-h"><div class="eyebrow">Привезли клиентам</div><h2>Реальные машины и цены под ключ</h2></div>
+      <div class="hero"><div><b>5000+</b><span>авто доставили за 4 года</span></div><div><b>2</b><span>офиса: Екатеринбург и Тюмень</span></div></div>
+      <div class="chips" id="caseCity" style="margin-bottom:6px"></div>
+      <div id="caseList"></div>
+      <p class="note" style="margin-top:14px">Из постов канала @elexcar за октябрь–ноябрь 2026.</p>
+    </section>
+
+    <!-- Менеджер -->
+    <section class="view gut adm" id="v-admin" aria-label="Для менеджера" hidden>
+      <div class="sec-h"><div class="eyebrow">Для менеджера ElexCar</div><h2>Управление приложением</h2><p class="note">Клиенты этот экран не видят: в меню бота его нет.</p></div>
+      <div class="stack">
+        <div class="panel"><h3>Подключить к боту</h3><ol>
+          <li>@BotFather → /mybots → @elexcar_podbor_bot.</li>
+          <li>Bot Settings → Menu Button → Configure menu button → ссылка на приложение → название «Подобрать авто».</li>
+          <li>Чтобы работала кнопка «Поделиться машиной»: Bot Settings → Configure Mini App → Enable → та же ссылка.</li></ol></div>
+        <div class="panel"><h3>Новые машины из канала</h3><p class="note" style="font-size:13.5px">После запуска бот — администратор канала @elexcar. Новый пост с ценой под ключ сам появляется в каталоге: название, год, пробег, мощность, цена, город и фото. Вы только отмечаете проданные ниже.</p><p class="note" id="admCat" style="margin-top:6px"></p></div>
+        <div class="panel"><h3>Наличие</h3><p class="note">Отметьте проданные — они уйдут в конец списка с пометкой «Продано». В тесте отметки видны только в этом браузере.</p><div id="soldList" style="margin-top:6px"></div></div>
+        <div class="panel"><h3>Ставки</h3><p class="note">Сейчас стоят примерные цифры — заменим на ваши. Доставка по каталогу, расчёт «своей машины», сроки и кредит пересчитаются сами.</p><div class="form" id="setForm" style="margin-top:10px"></div><button class="btn sec sm" type="button" id="setReset" style="margin-top:10px">Вернуть примерные ставки</button></div>
+        <div class="panel" style="display:grid;gap:10px"><h3>Сводка за неделю — пример</h3><p class="note">Так будет выглядеть отчёт, который бот присылает в ваш рабочий чат каждый понедельник. Цифры ниже условные — после запуска будут ваши.</p><div id="report" style="display:grid;gap:12px"></div></div>
+        <div class="panel" style="display:grid;gap:8px"><b>Откуда цифры</b>
+          <p class="note" id="rateLine"></p>
+          <p class="note">Пошлина — единые ставки ЕАЭС для физлица; сбор — шкала от стоимости; утильсбор — постановление № 1713, ставки 2026 года. Автовоз — по расстоянию между городами. Сроки — ориентир по этапам, кредит — ориентир без учёта условий банка.</p>
+          <p class="note" id="credits"></p></div>
+        <button class="btn sec" type="button" data-go="catalog">← В каталог</button>
+      </div>
+    </section>
+  </div>
+
+  <nav class="tabs" role="tablist" aria-label="Разделы" id="tabs">
+    <button type="button" role="tab" data-tab="catalog"><svg viewBox="0 0 24 24"><path d="M3 13l2-5.5A2 2 0 0 1 6.9 6h10.2a2 2 0 0 1 1.9 1.5L21 13v4h-2.5M3 13v4h2.5M3 13h18M8.5 17h7"/><circle cx="7" cy="17" r="1.6"/><circle cx="17" cy="17" r="1.6"/></svg>Каталог</button>
+    <button type="button" role="tab" data-tab="pick"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>Подбор</button>
+    <button type="button" role="tab" data-tab="fav"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>Избранное<span class="badge" id="favBadge" hidden></span></button>
+    <button type="button" role="tab" data-tab="calc"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 11h2M12 11h2M8 15h2M12 15h2M8 18h2M12 18h4"/></svg>Посчитать</button>
+    <button type="button" role="tab" data-tab="cases"><svg viewBox="0 0 24 24"><path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4 6.8 19.1l1-5.8L3.5 9.2l5.9-.9z"/></svg>Привезли</button>
+  </nav>
+
+  <div class="scrim" id="scrim"></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sh-name"><div class="grab"><button class="x" type="button" id="shx" aria-label="Закрыть">×</button></div><div id="shb"></div></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</div>
+
+<script>
+const DATA = {"checked": "19.11.2026", "rates": {"date": "19.11.2026", "cny": 12.3004, "eur": 90.3605}, "cars": [{"id": "e01", "post": 34622, "name": "Jetta VS5", "trim": "2026 · 280TSI Flagship High Gloss", "body": "suv", "year": "2026", "km": 100, "engine": "1.4 турбо", "hp": 150, "gear": "автомат Aisin", "drive": null, "from": "Китай", "city": "Уссурийск", "price": 2260000, "model": "vs5", "brand": "Jetta", "fuel": "petrol", "photos": ["photos_tg/vs5.jpg", "photos_tg/vs5_1.jpg", "photos_tg/vs5_2.jpg", "photos_tg/vs5_3.jpg"], "photo_credit": null, "photo_page": null, "video": false}, {"id": "e02", "post": 34611, "name": "Jetta VS7", "trim": "2026 · 280TSI Pioneer Edition", "body": "suv", "year": "2026", "km": 100, "engine": "1.4 турбо", "hp": 150, "gear": "автомат", "drive": null, "from": "Китай", "city": "Уссурийск", "price": 2275000, "model": "vs7", "brand": "Jetta", "fuel": "petrol", "photos": ["photos_tg/vs7.jpg", "photos_tg/vs7_1.jpg", "photos_tg/vs7_2.jpg", "photos_tg/vs7_3.jpg"], "photo_credit": null, "photo_page": null, "video": false}, {"id": "e03", "post": 34579, "name": "Hyundai Elantra", "trim": "2023", "body": "sedan", "year": "2023", "km": 17000, "engine": "1.5", "hp": 115, "gear": "вариатор", "drive": "передний", "from": "Китай", "city": "Владивосток", "price": 1890000, "model": "elantra", "brand": "Hyundai", "fuel": "petrol", "photos": ["photos_tg/elantra.jpg", "photos_tg/elantra_1.jpg", "photos_tg/elantra_2.jpg", "photos_tg/elantra_3.jpg"], "photo_credit": null, "photo_page": null, "video": false}, {"id": "e04", "post": 34550, "name": "Volkswagen Lamando", "trim": "2022", "body": "sedan", "year": "2022", "km": 60000, "engine": "1.4 турбо", "hp": 150, "gear": "DSG", "drive": "передний", "from": "Китай", "city": "Владивосток", "price": 1850000, "model": "lamando", "pos": "50% 85%", "brand": "Volkswagen", "fuel": "petrol", "photos": ["photos_tg/lamando.jpg", "photos_tg/lamando_1.jpg", "photos_tg/lamando_2.jpg", "photos_tg/lamando_3.jpg"], "photo_credit": null, "photo_page": null, "video": false}, {"id": "e05", "post": 34503, "name": "BMW 320Li", "trim": "2023 · удлинённый", "body": "sedan", "year": "2023", "km": 49000, "engine": "2.0 турбо", "hp": 156, "gear": null, "drive": "задний", "from": "Китай", "city": "Владивосток", "price": 3350000, "model": "bmw3", "pos": "50% 78%", "brand": "BMW", "fuel": "petrol", "photos": ["photos_tg/bmw3.jpg", "photos_tg/bmw3_1.jpg", "photos_tg/bmw3_2.jpg", "photos_tg/bmw3_3.jpg"], "photo_credit": null, "photo_page": null, "video": false}, {"id": "e06", "post": 34471, "name": "Skoda Kamiq GT", "trim": "2021 · TSI230", "body": "suv", "year": "2021", "km": 26000, "engine": "1.2 турбо", "hp": 116, "gear": "DSG", "drive": "передний", "from": "Китай", "city": "Владивосток", "price": 1850000, "model": "kamiq", "brand": "Skoda", "fuel": "petrol", "photos": ["photos_tg/kamiq.jpg", "photos_tg/kamiq_1.jpg", "photos_tg/kamiq_2.jpg", "photos_tg/kamiq_3.jpg"], "photo_credit": null, "photo_page": null, "video": false}, {"id": "e07", "post": 34465, "name": "Mercedes-Benz GLB 180", "trim": "2020", "body": "suv", "year": "2020", "km": 58700, "engine": "1.3 турбо", "hp": 136, "gear": null, "drive": "передний", "from": "Китай", "city": "Владивосток", "price": 2350000, "model": "glb", "pos": "50% 72%", "brand": "Mercedes-Benz", "fuel": "petrol", "photos": ["photos_tg/glb.jpg", "photos_tg/glb_1.jpg", "photos_tg/glb_2.jpg", "photos_tg/glb_3.jpg"], "photo_credit": null, "photo_page": null, "video": false}, {"id": "e08", "post": 34460, "name": "Nissan X-Trail", "trim": "2026 · новый", "body": "suv", "year": "2026", "km": 0, "engine": "2.0", "hp": 151, "gear": null, "drive": "передний", "from": "Китай", "city": "Москва / Екатеринбург", "price": 2650000, "model": "xtrail", "brand": "Nissan", "fuel": "petrol", "photos": ["photos/xtrail.jpg"], "photo_credit": "Alexander Migl, CC BY-SA 4.0, Wikimedia Commons", "photo_page": "https://commons.wikimedia.org/wiki/File:Nissan_X-Trail_e-Power_DSC_7092.jpg", "video": true}, {"id": "e09", "post": 34436, "name": "Volkswagen Golf", "trim": "2021", "body": "hatch", "year": "2021", "km": 38000, "engine": "1.4 турбо", "hp": 150, "gear": null, "drive": "передний", "from": "Китай", "city": "Владивосток", "price": 2130000, "model": "golf", "brand": "Volkswagen", "fuel": "petrol", "photos": ["photos_tg/golf.jpg", "photos_tg/golf_1.jpg", "photos_tg/golf_2.jpg", "photos_tg/golf_3.jpg"], "photo_credit": null, "photo_page": null, "video": false}, {"id": "e10", "post": 34424, "name": "Toyota Levin", "trim": "2023 · 185T CVT", "body": "sedan", "year": "2023", "km": 41000, "engine": "1.2 турбо", "hp": 115, "gear": "вариатор", "drive": "передний", "from": "Китай", "city": "Владивосток", "price": 1650000, "model": "levin", "brand": "Toyota", "fuel": "petrol", "photos": ["photos_tg/levin.jpg", "photos_tg/levin_1.jpg", "photos_tg/levin_2.jpg", "photos_tg/levin_3.jpg"], "photo_credit": null, "photo_page": null, "video": false}, {"id": "e11", "post": 34394, "name": "Mazda CX-30", "trim": "2022 · Harmony", "body": "suv", "year": "2022", "km": 33000, "engine": "2.0", "hp": 158, "gear": null, "drive": "передний", "from": "Китай", "city": "Владивосток", "price": 2150000, "model": "cx30", "brand": "Mazda", "fuel": "petrol", "photos": ["photos_tg/cx30.jpg", "photos_tg/cx30_1.jpg", "photos_tg/cx30_2.jpg", "photos_tg/cx30_3.jpg"], "photo_credit": null, "photo_page": null, "video": false}, {"id": "e12", "post": 34366, "name": "GAC GS4", "trim": "2026 · новый", "body": "suv", "year": "2026", "km": 0, "engine": "1.5 турбо", "hp": 155, "gear": null, "drive": null, "from": "Китай", "city": "Москва", "price": 2150000, "model": "gs4", "brand": "GAC", "fuel": "petrol", "photos": ["photos/gs4.jpg", "photos_tg/gs4_1.jpg", "photos_tg/gs4_2.jpg", "photos_tg/gs4_3.jpg"], "photo_credit": "JamesYoung8167, CC BY-SA 4.0, Wikimedia Commons", "photo_page": "https://commons.wikimedia.org/wiki/File:GAC_Trumpchi_GS4_Shishi_02_2022-09-19.jpg", "video": false}, {"id": "e13", "post": 34352, "name": "Volkswagen Touran", "trim": "2022 · 7 мест", "body": "van", "year": "2022", "km": 32000, "engine": "1.4 турбо", "hp": 150, "gear": null, "drive": "передний", "from": "Китай", "city": "Владивосток", "price": 1820000, "model": "touran", "brand": "Volkswagen", "fuel": "petrol", "photos": ["photos_tg/touran.jpg", "photos_tg/touran_1.jpg", "photos_tg/touran_2.jpg", "photos_tg/touran_3.jpg"], "photo_credit": null, "photo_page": null, "video": false}, {"id": "e14", "post": 34342, "name": "Kia Sorento", "trim": "2024 · гибрид", "body": "suv", "year": "2024", "km": 55460, "engine": "1.6 турбо гибрид", "hp": null, "gear": null, "drive": "передний", "from": "Корея", "city": "Владивосток", "price": 4070000, "model": "sorento", "brand": "Kia", "fuel": "hybrid", "photos": ["photos/sorento.jpg", "photos_tg/sorento_1.jpg", "photos_tg/sorento_2.jpg", "photos_tg/sorento_3.jpg"], "photo_credit": "Alexander-93, CC BY-SA 4.0, Wikimedia Commons", "photo_page": "https://commons.wikimedia.org/wiki/File:2024_Kia_Sorento_(MQ4)_Ditzingen_Mobil_IMG_9803.jpg", "video": false}, {"id": "e15", "post": 34270, "name": "Subaru Forester", "trim": "2022", "body": "suv", "year": "2022", "km": 47000, "engine": "2.0", "hp": 150, "gear": null, "drive": "полный", "from": "Китай", "city": "Владивосток", "price": 3200000, "model": "forester", "pos": "50% 78%", "brand": "Subaru", "fuel": "petrol", "photos": ["photos_tg/forester.jpg", "photos_tg/forester_1.jpg", "photos_tg/forester_2.jpg", "photos_tg/forester_3.jpg"], "photo_credit": null, "photo_page": null, "video": false}, {"id": "e16", "post": 34255, "name": "Volkswagen Tayron", "trim": "2022", "body": "suv", "year": "2022", "km": 55000, "engine": "1.4 турбо", "hp": 150, "gear": null, "drive": "передний", "from": "Китай", "city": "Владивосток", "price": 2660000, "model": "tayron", "brand": "Volkswagen", "fuel": "petrol", "photos": ["photos_tg/tayron.jpg", "photos_tg/tayron_1.jpg", "photos_tg/tayron_2.jpg", "photos_tg/tayron_3.jpg"], "photo_credit": null, "photo_page": null, "video": false}, {"id": "e17", "post": 34185, "name": "Honda Vezel", "trim": "2023", "body": "suv", "year": "2023", "km": 19500, "engine": "1.5", "hp": null, "gear": null, "drive": "передний", "from": "Китай", "city": "Владивосток", "price": 2100000, "model": "vezel", "brand": "Honda", "fuel": "petrol", "photos": ["photos_tg/vezel.jpg", "photos_tg/vezel_1.jpg", "photos_tg/vezel_2.jpg", "photos_tg/vezel_3.jpg"], "photo_credit": null, "photo_page": null, "video": false}, {"id": "e18", "post": 34321, "name": "Toyota bZ3X", "trim": "2026 · 520 Pro+, электро", "body": "suv", "year": "2026", "km": 0, "engine": "электро", "hp": 204, "gear": null, "drive": "передний", "from": "Китай", "city": "Москва", "price": 2970000, "model": "bz3x", "brand": "Toyota", "fuel": "ev", "photos": ["photos/bz3x.jpg"], "photo_credit": "JustAnotherCarDesigner, CC0, Wikimedia Commons", "photo_page": "https://commons.wikimedia.org/wiki/File:Toyota_bZ3X_001_(cropped).jpg", "video": true}, {"id": "e19", "post": 34159, "name": "Kia Seltos", "trim": "2026 · новый", "body": "suv", "year": "2026", "km": 0, "engine": "1.5", "hp": 115, "gear": "вариатор", "drive": "передний", "from": "Китай", "city": "Москва / Екатеринбург", "price": 2700000, "model": "seltos", "pos": "50% 60%", "brand": "Kia", "fuel": "petrol", "photos": ["photos_tg/seltos.jpg", "photos_tg/seltos_1.jpg", "photos_tg/seltos_2.jpg", "photos_tg/seltos_3.jpg"], "photo_credit": null, "photo_page": null, "video": false}, {"id": "e20", "post": 34130, "name": "Hyundai Sonata", "trim": "2023 · Premium", "body": "sedan", "year": "2023", "km": 63000, "engine": "2.0", "hp": 160, "gear": null, "drive": "передний", "from": "Корея", "city": "Владивосток", "price": 2600000, "model": "sonata", "brand": "Hyundai", "fuel": "petrol", "photos": ["photos_tg/sonata.jpg", "photos_tg/sonata_1.jpg", "photos_tg/sonata_2.jpg"], "photo_credit": null, "photo_page": null, "video": false}, {"id": "e21", "post": 34628, "name": "Geely Monjaro", "trim": "2026 · максимальная", "body": "suv", "year": "2026", "km": 0, "engine": "2.0 турбо", "hp": null, "gear": null, "drive": "полный", "from": "Кыргызстан", "city": "Екатеринбург / Москва", "price": 4120000, "model": "monjaro", "brand": "Geely", "fuel": "petrol", "photos": ["photos/monjaro.jpg"], "photo_credit": "Anonymousfox36, CC BY-SA 4.0, Wikimedia Commons", "photo_page": "https://commons.wikimedia.org/wiki/File:Geely_Xingyue_L_IMG006.jpg", "video": true}, {"id": "e22", "post": 34331, "name": "Volkswagen Tiguan L Pro", "trim": "2026 · новый", "body": "suv", "year": "2026", "km": 0, "engine": "2.0 турбо", "hp": 220, "gear": null, "drive": "полный", "from": "Кыргызстан", "city": "Москва / Екатеринбург", "price": 4850000, "model": "tiguanl", "brand": "Volkswagen", "fuel": "petrol", "photos": ["photos/tiguanl.jpg"], "photo_credit": "Dinkun Chen, CC BY-SA 4.0, Wikimedia Commons", "photo_page": "https://commons.wikimedia.org/wiki/File:VOLKSWAGEN_TIGUAN_L_PRO_China_(10).jpg", "video": true}, {"id": "e23", "post": 34461, "name": "Volkswagen Teramont Pro", "trim": "2026 · новый", "body": "suv", "year": "2026", "km": 0, "engine": "2.0 турбо", "hp": 279, "gear": null, "drive": "полный", "from": "Кыргызстан", "city": "Екатеринбург / Москва", "price": 5890000, "model": "teramont", "brand": "Volkswagen", "fuel": "petrol", "photos": ["photos/teramont.jpg"], "photo_credit": "Dinkun Chen, CC BY-SA 4.0, Wikimedia Commons", "photo_page": "https://commons.wikimedia.org/wiki/File:VOLKSWAGEN_TERAMONT_PRO_China_(3).jpg", "video": true}, {"id": "e24", "post": 34456, "name": "Lexus RX 300", "trim": "2026 · новый", "body": "suv", "year": "2026", "km": 0, "engine": "2.0 турбо", "hp": 248, "gear": null, "drive": "полный", "from": "Кыргызстан", "city": "Екатеринбург / Москва", "price": 7150000, "model": "rx", "brand": "Lexus", "fuel": "petrol", "photos": ["photos/rx.jpg"], "photo_credit": "Alexander-93, CC BY-SA 4.0, Wikimedia Commons", "photo_page": "https://commons.wikimedia.org/wiki/File:Lexus_RX_500h_F_Sport_Performance_(TALH17)_1X7A7076.jpg", "video": true}], "cases": [["Toyota bZ3X 2026, электро", "Михаила", "Екатеринбург", 3077109], ["Hyundai Sonata 2023, 160 л.с.", "Виталия", "Екатеринбург", 2795000], ["Mercedes-Benz GLA 180, 2020", "Юлии", "Москва", 2420000], ["BMW X1 sDrive20Li, 2023", "Екатерины", "Екатеринбург", 3500000], ["Mazda CX-5, 2021", "Татьяны", "Екатеринбург", 2570000], ["Audi A3 Sportback, 2022", "Рустама", "Нижнекамск", 2665000], ["Volkswagen Golf, 2022", "Алексея", "Челябинск", 2111000], ["Hyundai Venue, 2022", "Виктора", "Мурманск", 2150000], ["Honda Fit, 2020", "Светланы", "Екатеринбург", 1395000], ["Mazda CX-50, 2026", "Ольги", "Челябинск", 3450000], ["Audi Q2L 35 TFSI, 2022", "Александра", "Екатеринбург", 2086000], ["Volkswagen Bora, 2022", "Михаила", "Екатеринбург", 1558000], ["Subaru Impreza XV, 2018", "Татьяны", "Новосибирск", 1568000], ["Volkswagen T-Roc, 2026", "Андрея", "Екатеринбург", 2456000], ["Kia K3, 2026", "Татьяны", "Екатеринбург", 2220000]], "sold": []};
+/* ===== Настройки запуска =====
+   manager / managerIsBot — куда открывать чат с заявкой, если сервер не подключён.
+   api — адрес сервера-бота (worker.js): заявки сразу в рабочий чат, статистика, новые посты из канала.
+   botApp — ник бота с включённым Mini App: тогда «Поделиться» даёт ссылку t.me/<бот>?startapp=<машина>. */
+const CFG = { manager: "elexcar_podbor_bot", managerIsBot: true, channel: "elexcar", api: null, botApp: null };
+const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.initData ? Telegram.WebApp : null;
+if (TG) { document.body.classList.add("tg"); TG.ready(); TG.expand(); document.documentElement.dataset.theme = TG.colorScheme === "dark" ? "dark" : "light"; }
+
+const store = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+                set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } };
+
+/* ===== Города: имя, «в …», широта, долгота, код региона ===== */
+const GEO = [
+  ["Владивосток","Владивостоке",43.12,131.89,"25"],["Уссурийск","Уссурийске",43.80,131.95,"25"],["Хабаровск","Хабаровске",48.48,135.07,"27"],
+  ["Благовещенск","Благовещенске",50.26,127.53,"28"],["Чита","Чите",52.03,113.50,"75"],["Улан-Удэ","Улан-Удэ",51.83,107.58,"03"],
+  ["Иркутск","Иркутске",52.29,104.28,"38"],["Красноярск","Красноярске",56.01,92.85,"24"],["Кемерово","Кемерово",55.35,86.09,"42"],
+  ["Томск","Томске",56.48,84.95,"70"],["Новосибирск","Новосибирске",55.03,82.92,"54"],["Барнаул","Барнауле",53.35,83.78,"22"],
+  ["Омск","Омске",54.99,73.37,"55"],["Сургут","Сургуте",61.25,73.40,"86"],["Тюмень","Тюмени",57.15,65.53,"72"],
+  ["Екатеринбург","Екатеринбурге",56.84,60.61,"96"],["Челябинск","Челябинске",55.16,61.40,"74"],["Пермь","Перми",58.01,56.25,"59"],
+  ["Уфа","Уфе",54.74,55.97,"02"],["Казань","Казани",55.79,49.12,"16"],["Нижнекамск","Нижнекамске",55.64,51.82,"16"],
+  ["Самара","Самаре",53.20,50.15,"63"],["Нижний Новгород","Нижнем Новгороде",56.33,44.00,"52"],["Москва","Москве",55.76,37.62,"77"],
+  ["Санкт-Петербург","Санкт-Петербурге",59.94,30.31,"78"],["Воронеж","Воронеже",51.66,39.20,"36"],["Волгоград","Волгограде",48.71,44.51,"34"],
+  ["Ростов-на-Дону","Ростове-на-Дону",47.22,39.72,"61"],["Краснодар","Краснодаре",45.04,38.98,"23"],["Мурманск","Мурманске",68.97,33.07,"51"],
+];
+const G = n => GEO.find(g => g[0] === n);
+
+/* ===== Ставки (пример — заменить на ставки ElexCar) ===== */
+const DEFAULT_SET = { rateMarkup: 2, chinaCny: 6000, delivery: 120000, broker: 95000, commission: 60000, leadMonths: 2, perKm: 22, minHaul: 25000, loanRate: 24, loanDown: 30, loanTerm: 60 };
+const SET_FIELDS = [
+  ["perKm","Автовоз по России, ₽ за км",1],["minHaul","Автовоз, минимум, ₽",1000],
+  ["loanRate","Ставка кредита, % годовых",0.1],["loanDown","Первый взнос по умолчанию, %",1],["loanTerm","Срок кредита по умолчанию, мес.",6],
+  ["rateMarkup","Наценка к курсу ¥, %",0.1],["chinaCny","Расходы в Китае, ¥",100],["delivery","Доставка до Уссурийска, ₽",1000],
+  ["broker","Брокер, СВХ, СБКТС, ЭПТС, ₽",1000],["commission","Комиссия компании, ₽",1000],["leadMonths","Месяцев до таможни",1],
+];
+const LS = "elexcar-settings";
+let SET = { ...DEFAULT_SET, ...store.get(LS, {}) };
+let CITY = store.get("elexcar-city", ""); if (CITY && !G(CITY)) CITY = "";
+const FAV = new Set(store.get("elexcar-fav", []));
+const CMP = new Set(store.get("elexcar-cmp", []));
+const SOLD = new Set(store.get("elexcar-sold", DATA.sold || []));
+
+/* ===== Статистика: события уходят на сервер, если он подключён ===== */
+function track(ev, data) {
+  if (!CFG.api) return;
+  const body = JSON.stringify({ ev, city: CITY, t: Date.now(), ...(data || {}) });
+  try { navigator.sendBeacon(CFG.api + "/event", new Blob([body], { type: "application/json" })); } catch (e) {}
+}
+
+const fmt = n => Math.round(n).toLocaleString("ru-RU");
+const dec = n => String(n).replace(".", ",");
+const $ = id => document.getElementById(id);
+const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+const MONTHS = ["январе","феврале","марте","апреле","мае","июне","июле","августе","сентябре","октябре","ноябре","декабре"];
+const MON_G = ["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
+const ratesDay = new Date(DATA.rates.date.split(".").reverse().join("-"));
+const addM = (d, m) => { const x = new Date(d); x.setMonth(x.getMonth() + m); return x; };
+const addD = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const ym = s => { const [y, m] = String(s || "2023-01").split("-").map(Number); return new Date(y, (m || 1) - 1, 15); };
+const mDiff = (a, b) => (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth());
+let toastT; function toast(t) { const e = $("toast"); e.textContent = t; e.classList.add("on"); clearTimeout(toastT); toastT = setTimeout(() => e.classList.remove("on"), 2200); }
+
+/* ===== Автовоз ===== */
+function roadKm(a, b) { const r = x => x * Math.PI / 180, la1 = r(a[2]), la2 = r(b[2]), dl = r(b[3] - a[3]);
+  const d = 2 * 6371 * Math.asin(Math.sqrt(Math.sin((la2 - la1) / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dl / 2) ** 2)); return Math.round(d * 1.4 / 10) * 10; }
+function haul(fromCity, to) {
+  const dest = G(to); if (!dest) return null;
+  let best = null;
+  for (const o of String(fromCity).split(" / ").map(G).filter(Boolean)) { const km = o[0] === dest[0] ? 0 : roadKm(o, dest); if (!best || km < best.km) best = { from: o, km }; }
+  if (!best) return null;
+  if (best.km < 150) return { ...best, dest, cost: 0, days: 0, dmin: 0, dmax: 0 };
+  const days = Math.ceil(best.km / 550) + 2;
+  return { ...best, dest, cost: Math.max(SET.minHaul, Math.round(best.km * SET.perKm / 1000) * 1000), days, dmin: Math.max(2, days - 2), dmax: days + 3 };
+}
+const deliv = c => { const h = CITY ? haul(c.city, CITY) : null; return { h, total: c.price + (h ? h.cost : 0) }; };
+
+/* ===== Сроки ===== */
+const STAGES = {
+  "Китай": [["Выкуп и экспорт из Китая",5,8],["Доставка до Уссурийска",7,10],["Таможня и СВХ",5,8],["СБКТС и ЭПТС",4,7]],
+  "Корея": [["Выкуп и экспорт из Кореи",3,5],["Паром до Владивостока",4,7],["Таможня и СВХ",5,8],["СБКТС и ЭПТС",4,7]],
+  "Кыргызстан": [["Оформление и выпуск в Кыргызстане",3,5],["Автовоз до Екатеринбурга / Москвы",10,14]],
+};
+function timeline(c) {
+  const st = (STAGES[c.from] || STAGES["Китай"]).map(s => [...s]);
+  const base = String(c.city).split(" / ")[0];
+  if (c.from !== "Кыргызстан" && !["Уссурийск", "Владивосток"].includes(base)) {
+    const h = haul("Уссурийск", base); if (h && h.km) st.push([`Автовоз Уссурийск → ${base}`, h.dmin, h.dmax]);
+  }
+  const d = deliv(c);
+  if (d.h && d.h.cost) st.push([`Автовоз ${d.h.from[0]} → ${d.h.dest[0]}`, d.h.dmin, d.h.dmax]);
+  const min = st.reduce((s, x) => s + x[1], 0), max = st.reduce((s, x) => s + x[2], 0);
+  return { st, min, max, where: d.h ? d.h.dest[0] : base };
+}
+const dayStr = d => `${d.getDate()} ${MON_G[d.getMonth()]}`;
+function arriveStr(t) { const now = new Date(), a = addD(now, t.min), b = addD(now, t.max);
+  return a.getMonth() === b.getMonth() ? `${a.getDate()}–${b.getDate()} ${MON_G[b.getMonth()]}` : `${dayStr(a)} – ${dayStr(b)}`; }
+
+/* ===== Кредит ===== */
+const monthly = (price, downPct, months, rate) => { const P = price * (1 - downPct / 100), r = rate / 1200; return r ? P * r / (1 - Math.pow(1 + r, -months)) : P / months; };
+
+/* ===== Растаможка физлица (для «своей машины») ===== */
+const ETT_NEW = [[8500,.54,2.5],[16700,.48,3.5],[42300,.48,5.5],[84500,.48,7.5],[169000,.48,15],[Infinity,.48,20]];
+const ETT_CC = { mid:[[1000,1.5],[1500,1.7],[1800,2.5],[2300,2.7],[3000,3.0],[Infinity,3.6]], old:[[1000,3.0],[1500,3.2],[1800,3.5],[2300,4.8],[3000,5.0],[Infinity,5.7]] };
+const FEE = [[200000,1231],[450000,2462],[1200000,4924],[2700000,13541],[4200000,18465],[5500000,21344],[10000000,49240],[Infinity,73860]];
+const UTIL_NEW = [[190,[307200,900000,2306640,3345600]],[220,[374400,1075200,2556000,3744000]],[250,[441600,1250400,2808000,4140000]],[270,[508800,1425600,3060000,4536000]],[300,[576000,1598400,3312000,4932000]],[Infinity,[672000,3201600,4248000,5328000]]];
+const UTIL_OLD = [[190,[568800,1492800,3456000,4389600]],[220,[691200,1728000,3744000,4780800]],[250,[813600,1996800,4032000,5172000]],[270,[936000,2236800,4320000,5563200]],[300,[1058400,2476800,4608000,5954400]],[Infinity,[1180800,3796800,5184000,6345600]]];
+function ageInfo(made) {
+  const m = mDiff(made, addM(ratesDay, SET.leadMonths));
+  const cls = m < 36 ? "new" : m <= 60 ? "mid" : "old";
+  if (cls === "mid") return { m, cls, tone: "good", text: `На таможне машине будет ${Math.floor(m/12)} г. ${m%12} мес. — проходная, пошлина минимальная. Проходной останется ещё ${60 - m} мес.` };
+  if (cls === "new") { const d = addM(made, 36); return { m, cls, tone: "warn", text: `Машине на таможне меньше 3 лет — пошлина считается от цены. Проходной станет в ${MONTHS[d.getMonth()]} ${d.getFullYear()} г., через ${36 - m} мес.` }; }
+  return { m, cls, tone: "bad", text: "Машине больше 5 лет — пошлина по повышенной ставке за каждый см³." };
+}
+function calcOwn(c, cityName) {
+  const R = DATA.rates, pay = R.cny * (1 + SET.rateMarkup / 100), a = ageInfo(ym(c.made));
+  const valueEur = c.cny * R.cny / R.eur;
+  let dutyEur, dutyNote;
+  if (a.cls === "new") { const [, pct, min] = ETT_NEW.find(([l]) => valueEur <= l); const p = valueEur * pct, q = c.cc * min; dutyEur = Math.max(p, q);
+    dutyNote = p >= q ? `${Math.round(pct*100)}% от ${fmt(valueEur)} €` : `${dec(min)} € × ${fmt(c.cc)} см³ — больше, чем ${Math.round(pct*100)}% от цены`; }
+  else { const [, rate] = ETT_CC[a.cls].find(([l]) => c.cc <= l); dutyEur = c.cc * rate; dutyNote = `${dec(rate)} € × ${fmt(c.cc)} см³`; }
+  const duty = dutyEur * R.eur, fee = FEE.find(([l]) => c.cny * R.cny <= l)[1];
+  const lgota = c.hp <= 160 && c.cc <= 3000;
+  let util, utilNote;
+  if (lgota) { util = a.cls === "new" ? 3400 : 5200; utilNote = "Льготный: до 160 л.с. и до 3 л"; }
+  else { const col = c.cc <= 1000 ? 0 : c.cc <= 2000 ? 1 : c.cc <= 3000 ? 2 : 3;
+    util = (a.cls === "new" ? UTIL_NEW : UTIL_OLD).find(([l]) => c.hp <= l)[1][col]; utilNote = `${c.hp} л.с. — больше 160, льгота не действует`; }
+  const car = c.cny * pay, china = SET.chinaCny * pay, city = G(cityName) || G("Уссурийск"), h = haul("Уссурийск", city[0]);
+  const rows = [
+    ["Цена машины в Китае", car, `¥ ${fmt(c.cny)} × ${pay.toFixed(2).replace(".", ",")} ₽ — курс ЦБ + ${dec(SET.rateMarkup)}% за перевод`],
+    ["Расходы в Китае", china, `¥ ${fmt(SET.chinaCny)}: экспортное оформление, доставка до границы`],
+    ["Пошлина", duty, dutyNote], ["Таможенный сбор", fee, "Шкала от стоимости машины"], ["Утильсбор", util, utilNote, !lgota],
+    ["Доставка до Уссурийска", SET.delivery, "Автовоз или контейнер"], ["Брокер, СВХ, СБКТС и ЭПТС", SET.broker, "Оформление и документы для учёта"],
+    ["Комиссия компании", SET.commission, ""],
+  ];
+  if (h && h.cost) rows.push([`Автовоз Уссурийск → ${city[0]}`, h.cost, `≈ ${fmt(h.km)} км, в пути ~${h.days} дн.`]);
+  return { rows, total: rows.reduce((s, r) => s + r[1], 0), age: a, city };
+}
+
+/* ===== Общие кусочки ===== */
+const region = city => (G(String(city).split(" / ")[0]) || [])[4] || "RUS";
+const inCity = city => { const parts = String(city).split(" / ").map(x => (G(x) || [])[1] || x); return (parts[0].startsWith("Вл") ? "во " : "в ") + parts.join(" / "); };
+function plate(sum, reg, lg) { const p = el("span", "plate" + (lg ? " lg" : "")); p.append(el("b", null, fmt(sum) + " ₽")); const s = el("small"); s.append(reg || "RUS"); s.append(el("em", null, "RUS")); p.append(s); p.setAttribute("aria-label", fmt(sum) + " рублей"); return p; }
+function setCity(n) { CITY = n; store.set("elexcar-city", n); for (const s of document.querySelectorAll("select.citysel")) s.value = n; track("city", { to: n }); }
+function citySelect(withPost, onChange) {
+  const s = el("select", "citysel"); s.setAttribute("aria-label", "Ваш город");
+  if (withPost) { const o = el("option", null, "Как в посте (без доставки)"); o.value = ""; s.append(o); }
+  for (const g of GEO) { const o = el("option", null, g[0]); o.value = g[0]; s.append(o); }
+  s.value = CITY; s.onchange = () => { setCity(s.value); refreshAll(); onChange && onChange(); }; return s;
+}
+const lg = c => c.hp != null && c.hp <= 160 && c.fuel !== "ev";
+const kmLabel = c => c.km <= 200 ? (c.km ? `${c.km} км, новая` : "новая") : fmt(c.km) + " км";
+const engLabel = c => c.engine + (c.hp ? `, ${c.hp} л.с.` : "");
+const carById = id => DATA.cars.find(c => c.id === id);
+const shareUrl = c => CFG.botApp ? `https://t.me/${CFG.botApp}?startapp=${c.id}` : location.href.split("#")[0] + "#car-" + c.id;
+const heartSvg = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>';
+function toggleFav(id) { if (FAV.has(id)) { FAV.delete(id); CMP.delete(id); } else { FAV.add(id); track("fav", { car: id }); toast("Добавлено в избранное"); }
+  store.set("elexcar-fav", [...FAV]); store.set("elexcar-cmp", [...CMP]); favBadge(); }
+function favBadge() { const b = $("favBadge"); b.hidden = !FAV.size; b.textContent = FAV.size; }
+function heartBtn(c) { const h = el("button", "heart"); h.type = "button"; h.innerHTML = heartSvg; h.setAttribute("aria-label", "В избранное: " + c.name);
+  h.setAttribute("aria-pressed", FAV.has(c.id)); h.onclick = e => { e.stopPropagation(); toggleFav(c.id); h.setAttribute("aria-pressed", FAV.has(c.id)); }; return h; }
+
+/* ===== Вкладки ===== */
+const TABS = ["catalog","pick","fav","calc","cases","admin"];
+const TITLES = { catalog: "Каталог", pick: "Подбор под запрос", fav: "Избранное", calc: "Своя машина", cases: "Привезли клиентам", admin: "Для менеджера" };
+function show(t) {
+  if (t.startsWith("car-")) { const c = carById(t.slice(4)); if (c) { if ($("v-catalog").hidden) show("catalog"); openCar(c); return; } }
+  if (!TABS.includes(t)) t = "catalog";
+  for (const k of TABS) $("v-" + k).hidden = k !== t;
+  for (const b of $("tabs").children) b.setAttribute("aria-selected", b.dataset.tab === t);
+  $("topnote").textContent = TITLES[t];
+  closeSheet(); $("app").scrollTop = 0; scrollTo(0, 0);
+  if (t === "fav") renderFav(); if (t === "pick") renderPickMatch(); if (t === "admin") renderAdmin();
+}
+$("tabs").addEventListener("click", e => { const b = e.target.closest("button[data-tab]"); if (!b) return; if (location.hash !== "#" + b.dataset.tab) location.hash = b.dataset.tab; else show(b.dataset.tab); });
+document.addEventListener("click", e => { const b = e.target.closest("[data-go]"); if (b) location.hash = b.dataset.go; });
+addEventListener("hashchange", () => show(location.hash.slice(1)));
+
+/* ===== Каталог и фильтры ===== */
+const BODY = { all: "Все", suv: "Кроссоверы", sedan: "Седаны", hatch: "Хэтчбеки", van: "Минивэны", new: "Новые 2026" };
+const FUEL = { petrol: "Бензин", hybrid: "Гибрид", ev: "Электро" };
+const F = { body: "all", brand: new Set(), from: new Set(), fuel: new Set() };
+const matchBody = (c, k) => k === "all" || c.body === k || (k === "new" && c.year === "2026");
+const steps = [2000000,2500000,3000000,3500000,4500000,6000000,Infinity];
+const budget = $("budget"); budget.max = steps.length - 1; budget.value = steps.length - 1;
+function chipGroup(box, items, set, single, onChange) {
+  box.replaceChildren(...items.map(([k, label]) => { const b = el("button", "chip", label); b.type = "button";
+    b.setAttribute("aria-pressed", single ? F.body === k : set.has(k));
+    b.onclick = () => { if (single) { F.body = k; for (const x of box.children) x.setAttribute("aria-pressed", x === b); }
+      else { set.has(k) ? set.delete(k) : set.add(k); b.setAttribute("aria-pressed", set.has(k)); } (onChange || render)(); };
+    return b; }));
+}
+function bodyChips() { chipGroup($("chips"), Object.keys(BODY).filter(k => DATA.cars.some(c => matchBody(c, k))).map(k => [k, `${BODY[k]} · ${DATA.cars.filter(c => matchBody(c, k)).length}`]), null, true); }
+bodyChips();
+function filterChips() {
+  chipGroup($("fBrand"), [...new Set(DATA.cars.map(c => c.brand))].sort().map(b => [b, b]), F.brand);
+  chipGroup($("fFrom"), [...new Set(DATA.cars.map(c => c.from))].map(f => [f, f]), F.from);
+  chipGroup($("fFuel"), Object.keys(FUEL).filter(k => DATA.cars.some(c => c.fuel === k)).map(k => [k, FUEL[k]]), F.fuel);
+}
+filterChips();
+{ const ys = [...new Set(DATA.cars.map(c => +c.year))].sort(); $("fYear").append(Object.assign(el("option", null, "любой"), { value: "" }));
+  for (const y of ys) $("fYear").append(Object.assign(el("option", null, String(y)), { value: y })); }
+$("fToggle").onclick = () => { const p = $("fpanel"); p.hidden = !p.hidden; $("fToggle").setAttribute("aria-expanded", !p.hidden); p.parentElement.classList.toggle("open", !p.hidden); };
+$("fReset").onclick = () => { F.brand.clear(); F.from.clear(); F.fuel.clear(); $("fYear").value = ""; $("fKm").value = ""; $("fAwd").checked = false; $("lgota").checked = false;
+  for (const box of ["fBrand", "fFrom", "fFuel"]) for (const b of $(box).children) b.setAttribute("aria-pressed", false); render(); };
+for (const id of ["fYear", "fKm", "fAwd", "lgota", "fSold", "sort"]) $(id).addEventListener("change", render);
+budget.oninput = render;
+
+function filtered() {
+  const lim = steps[+budget.value], y = +$("fYear").value || 0, km = $("fKm").value === "" ? Infinity : +$("fKm").value;
+  return DATA.cars.filter(c => matchBody(c, F.body) && deliv(c).total <= lim
+    && (!F.brand.size || F.brand.has(c.brand)) && (!F.from.size || F.from.has(c.from)) && (!F.fuel.size || F.fuel.has(c.fuel))
+    && +c.year >= y && c.km <= km && (!$("fAwd").checked || c.drive === "полный") && (!$("lgota").checked || lg(c))
+    && ($("fSold").checked || !SOLD.has(c.id)));
+}
+function sorted(list) {
+  const s = $("sort").value, key = { price: c => deliv(c).total, "-price": c => -deliv(c).total, year: c => -(+c.year), km: c => c.km, days: c => timeline(c).min }[s];
+  return list.sort((a, b) => (SOLD.has(a.id) - SOLD.has(b.id)) || key(a) - key(b));
+}
+function photoEl(src, alt, pos) { const img = new Image(); img.src = src; img.alt = alt; img.loading = "lazy"; img.decoding = "async"; if (pos) img.style.objectPosition = pos; return img; }
+function card(c) {
+  const d = deliv(c), b = el("article", "card" + (SOLD.has(c.id) ? " sold" : "")); b.tabIndex = 0; b.setAttribute("role", "button");
+  b.setAttribute("aria-label", `${c.name}, под ключ ${fmt(d.total)} рублей. Открыть`);
+  const ph = el("div", "ph"); ph.append(photoEl(c.photos[0], c.name, c.pos));
+  const tags = el("div", "tags");
+  if (SOLD.has(c.id)) tags.append(el("span", "tag bad", "Продано"));
+  if (c.fresh) tags.append(el("span", "tag acc", "Новое в канале"));
+  else if (c.km <= 200) tags.append(el("span", "tag acc", "Новая"));
+  if (lg(c)) tags.append(el("span", "tag good", "До 160 л.с."));
+  if (c.from !== "Китай") tags.append(el("span", "tag", "Из страны: " + c.from));
+  ph.append(tags, heartBtn(c));
+  if (c.photos.length > 1) ph.append(el("span", "cnt", `${c.photos.length} фото`));
+  const cb = el("div", "cb"); cb.append(el("h3", null, c.name), el("div", "trim", c.trim));
+  const sp = el("div", "specs"); for (const v of [c.year + " г.", kmLabel(c), engLabel(c)]) sp.append(el("span", null, v)); cb.append(sp);
+  const pr = el("div", "pr"), L = el("div");
+  if (d.h) { L.append(el("div", "lbl", "Под ключ " + inCity(d.h.dest[0])), plate(d.total, d.h.dest[4]));
+    if (d.h.cost) L.append(el("div", "via", `${fmt(c.price)} ₽ ${inCity(d.h.from[0])} + автовоз ${fmt(d.h.cost)} ₽`)); }
+  else L.append(el("div", "lbl", "Под ключ " + inCity(c.city)), plate(c.price, region(c.city)));
+  const t = timeline(c), R = el("div", "mo"); R.append(el("b", null, `от ${fmt(monthly(d.total, SET.loanDown, SET.loanTerm, SET.loanRate))} ₽/мес`), `у вас ≈ ${arriveStr(t)}`);
+  pr.append(L, R); cb.append(pr);
+  b.append(ph, cb);
+  b.onclick = () => openCar(c); b.onkeydown = e => { if (e.target === b && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); openCar(c); } };
+  return b;
+}
+function render() {
+  const lim = steps[+budget.value];
+  $("bout").value = lim === Infinity ? "без лимита" : fmt(lim) + " ₽";
+  const list = sorted(filtered());
+  $("list").replaceChildren(...(list.length ? list.map(card) : [el("p", "empty", "Под эти условия ничего нет. Сбросьте фильтры или оставьте запрос на подбор — найдём.")]));
+  $("count").textContent = `${list.length} из ${DATA.cars.length} машин`;
+  const nf = F.brand.size + F.from.size + F.fuel.size + (+!!$("fYear").value) + (+!!$("fKm").value) + (+$("fAwd").checked) + (+$("lgota").checked);
+  $("activeF").textContent = nf ? `фильтров: ${nf}` : ""; $("fToggle").textContent = nf ? `Фильтры · ${nf}` : "Фильтры";
+}
+
+/* ===== Заявка ===== */
+async function deliverLead(lines, meta) {
+  const u = TG && TG.initDataUnsafe && TG.initDataUnsafe.user; if (u && u.username) lines.push("@" + u.username);
+  const text = lines.join("\n"); track("lead", meta);
+  if (CFG.api) { try { const r = await fetch(CFG.api + "/lead", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text, initData: TG ? TG.initData : "", ...meta }) }); if (r.ok) return { mode: "api", text }; } catch (e) {} }
+  let copied = false; if (CFG.managerIsBot) { try { await navigator.clipboard.writeText(text); copied = true; } catch (e) {} }
+  const url = CFG.managerIsBot ? `https://t.me/${CFG.manager}` : `https://t.me/${CFG.manager}?text=${encodeURIComponent(text)}`;
+  if (TG) TG.openTelegramLink(url); else window.open(url, "_blank", "noopener");
+  return { mode: CFG.managerIsBot ? (copied ? "copied" : "manual") : "chat", text };
+}
+function leadForm(title, summary, meta) {
+  const box = el("div", "stack"); box.append(el("b", null, title));
+  const f = el("div", "form"), u = TG && TG.initDataUnsafe && TG.initDataUnsafe.user;
+  const n = el("label", null, "Имя"); const ni = el("input"); ni.autocomplete = "name"; ni.value = u ? [u.first_name, u.last_name].filter(Boolean).join(" ") : ""; n.append(ni);
+  const p = el("label", null, "Телефон (необязательно)"); const pi = el("input"); pi.type = "tel"; pi.inputMode = "tel"; pi.autocomplete = "tel"; p.append(pi);
+  f.append(n, p);
+  const go = el("button", "btn pri full", "Отправить менеджеру"); go.type = "button";
+  const out = el("div", "sent");
+  go.onclick = async () => {
+    const lines = [...summary(), CITY ? "Город: " + CITY : "", [ni.value, pi.value].filter(Boolean).join(", ")].filter(Boolean);
+    const r = await deliverLead(["Заявка из приложения ElexCar", ...lines], meta ? meta() : {});
+    const m = el("div", "msg"); m.append(el("span", "from", r.mode === "api" ? "Заявка отправлена менеджеру" : "Так заявка придёт менеджеру"));
+    for (const line of lines) m.append(el("span", null, line));
+    m.append(el("time", null, new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })));
+    const note = { api: "Менеджер напишет вам в Telegram.", copied: "Текст заявки скопирован — вставьте его в чат с менеджером.", manual: "Скопируйте текст выше и отправьте менеджеру.", chat: "Открываем чат с менеджером, текст уже вставлен — нажмите «Отправить»." }[r.mode];
+    out.replaceChildren(m, el("p", "note", note));
+  };
+  box.append(f, go, out); return box;
+}
+
+/* ===== Лист машины ===== */
+let curCar = null;
+function gallery(c) {
+  const g = el("div", "gal"), s = el("div", "strip"), dots = el("div", "dots");
+  c.photos.forEach((p, i) => { s.append(photoEl(p, `${c.name}, фото ${i + 1}`, i ? null : c.pos)); dots.append(el("i", i ? "" : "on")); });
+  s.addEventListener("scroll", () => { const i = Math.round(s.scrollLeft / Math.max(1, s.clientWidth)); [...dots.children].forEach((d, k) => d.classList.toggle("on", k === i)); }, { passive: true });
+  g.append(s); if (c.photos.length > 1) g.append(dots); return g;
+}
+function openCar(c) {
+  curCar = c; track("view", { car: c.id, name: c.name });
+  const B = $("shb"); B.replaceChildren(gallery(c));
+  const sb = el("div", "sb gut");
+  if (c.photo_credit) { const cr = el("div", "credit"); const a = el("a", null, c.photo_credit); a.href = c.photo_page; a.target = "_blank"; a.rel = "noopener"; cr.append("Первое фото — снимок модели: ", a, "."); sb.append(cr); }
+  const h = el("h2", null, c.name); h.id = "sh-name"; sb.append(h, el("div", "muted", c.trim));
+  if (SOLD.has(c.id)) sb.append(el("div", "age bad", "Эта машина уже продана. Похожую подберём — оставьте заявку ниже."));
+  const acts = el("div", "acts");
+  const fav = el("button", "btn sec sm", FAV.has(c.id) ? "♥ В избранном" : "♡ В избранное"); fav.type = "button";
+  fav.onclick = () => { toggleFav(c.id); fav.textContent = FAV.has(c.id) ? "♥ В избранном" : "♡ В избранное"; render(); };
+  const sh = el("button", "btn sec sm", "Поделиться"); sh.type = "button"; sh.onclick = () => share(c);
+  acts.append(fav, sh);
+  if (c.video) { const v = el("a", "btn sec sm", "Видео в посте ↗"); v.href = `https://t.me/${CFG.channel}/${c.post}`; v.target = "_blank"; v.rel = "noopener"; acts.append(v); }
+  sb.append(acts);
+  const dl = el("dl", "facts");
+  for (const [k, v] of [["Год", c.year], ["Пробег", kmLabel(c)], ["Двигатель", engLabel(c)], ["Коробка", c.gear], ["Привод", c.drive], ["Откуда везём", c.from]])
+    if (v) { const d = el("div"); d.append(el("dt", null, k), el("dd", null, v)); dl.append(d); }
+  sb.append(dl);
+  if (lg(c)) sb.append(el("div", "age good", "До 160 л.с. — утильсбор льготный, без доплаты в сотни тысяч."));
+
+  const cityRow = el("label", "cityrow", "Куда везём"), priceBox = el("div", "stack"), tlBox = el("div", "stack"), loanBox = el("div");
+  const drawPrice = () => {
+    const d = deliv(c), w = el("div", "brk");
+    const row = (k, v, note) => { const r = el("div", "r"); r.append(el("span", null, k), el("b", null, fmt(v) + " ₽")); if (note) r.append(el("small", null, note)); w.append(r); };
+    row("Под ключ " + inCity(c.city), c.price, "Цена из поста: машина, растаможка, документы и комиссия");
+    if (d.h && d.h.cost) row(`Автовоз ${d.h.from[0]} → ${d.h.dest[0]}`, d.h.cost, `≈ ${fmt(d.h.km)} км, в пути ~${d.h.days} дн. Ставка ${SET.perKm} ₽/км — примерная`);
+    else if (d.h) w.append(el("div", "r", "Машина приходит в ваш город — доставка не нужна"));
+    const s = el("div", "sum"); s.append(el("span", null, d.h ? "Итого " + inCity(d.h.dest[0]) : "Под ключ"), plate(d.total, d.h ? d.h.dest[4] : region(c.city), true)); w.append(s);
+    priceBox.replaceChildren(w); if (!d.h) priceBox.append(el("p", "note", "Выберите город — посчитаем доставку до вас."));
+  };
+  const drawTl = () => {
+    const t = timeline(c), ul = el("ol", "tl");
+    for (const [name, a, b] of t.st) { const li = el("li"); li.append(el("span", null, name), el("small", null, a === b ? `${a} дн.` : `${a}–${b} дн.`)); ul.append(li); }
+    const fin = el("li", "fin"); fin.append(el("b", null, `Машина ${inCity(t.where)}`), el("small", null, `≈ ${arriveStr(t)}`)); ul.append(fin);
+    tlBox.replaceChildren(ul, el("p", "note", `Всего ${t.min}–${t.max} дней, если машина в наличии. Точный срок назовёт менеджер.`));
+  };
+  const drawLoan = () => {
+    const box = el("div", "loan"), d = deliv(c);
+    const big = el("div", "big"), sub = el("div", "note");
+    const dIn = el("input"); dIn.type = "range"; dIn.min = 0; dIn.max = 80; dIn.step = 5; dIn.value = SET.loanDown; dIn.setAttribute("aria-label", "Первый взнос");
+    const tIn = el("input"); tIn.type = "range"; tIn.min = 12; tIn.max = 84; tIn.step = 12; tIn.value = SET.loanTerm; tIn.setAttribute("aria-label", "Срок кредита");
+    const dL = el("label", "range"), tL = el("label", "range"), dO = el("output"), tO = el("output");
+    dL.append("Взнос", dIn, dO); tL.append("Срок", tIn, tO);
+    const upd = () => { const down = +dIn.value, term = +tIn.value; dO.value = `${down}% · ${fmt(d.total * down / 100)} ₽`; tO.value = `${term} мес.`;
+      big.textContent = `≈ ${fmt(monthly(d.total, down, term, SET.loanRate))} ₽/мес`; sub.textContent = `При ставке ${dec(SET.loanRate)}% годовых. Ориентир — условия подберёт менеджер с банком.`; };
+    dIn.oninput = upd; tIn.oninput = upd; upd();
+    box.append(big, dL, tL, sub); loanBox.replaceChildren(box);
+  };
+  cityRow.append(citySelect(true, () => { drawPrice(); drawTl(); drawLoan(); }));
+  sb.append(el("div", "h3", "Сколько будет в вашем городе"), cityRow, priceBox, el("div", "h3", "Когда будет у вас"), tlBox, el("div", "h3", "Платёж в месяц"), loanBox);
+  drawPrice(); drawTl(); drawLoan();
+  sb.append(leadForm("Хочу эту машину", () => { const d = deliv(c), t = timeline(c); return [`${c.name}, ${c.trim}`, `${c.year} г., ${kmLabel(c)}${c.hp ? ", " + c.hp + " л.с." : ""}`, `Под ключ ${inCity(c.city)}: ${fmt(c.price)} ₽`,
+    ...(d.h && d.h.cost ? [`С автовозом до города ${d.h.dest[0]}: ${fmt(d.total)} ₽`] : []), `Срок по приложению: ≈ ${arriveStr(t)}`, `Пост: t.me/${CFG.channel}/${c.post}`]; }, () => ({ car: c.id })));
+  const src = el("p", "src"); const a = el("a", null, "Пост в канале ↗"); a.href = `https://t.me/${CFG.channel}/${c.post}`; a.target = "_blank"; a.rel = "noopener";
+  src.append(a, " · цена из поста. Наличие и актуальную цену подтвердит менеджер."); sb.append(src);
+  B.append(sb);
+  $("sheet").scrollTop = 0; $("sheet").classList.add("on"); $("scrim").classList.add("on"); $("shx").focus();
+}
+function closeSheet() { $("sheet").classList.remove("on"); $("scrim").classList.remove("on"); if (curCar && location.hash === "#car-" + curCar.id) history.replaceState(null, "", "#catalog"); curCar = null; }
+$("shx").onclick = closeSheet; $("scrim").onclick = closeSheet;
+addEventListener("keydown", e => { if (e.key === "Escape") closeSheet(); });
+async function share(c) {
+  const d = deliv(c), url = shareUrl(c), text = `${c.name}, ${c.year} г. — под ключ ${d.h ? inCity(d.h.dest[0]) : inCity(c.city)} ${fmt(d.total)} ₽. Смотри в приложении ElexCar:`;
+  track("share", { car: c.id });
+  if (TG) { TG.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`); return; }
+  if (navigator.share) { try { await navigator.share({ title: c.name, text, url }); return; } catch (e) {} }
+  try { await navigator.clipboard.writeText(text + " " + url); toast("Ссылка скопирована"); } catch (e) { toast(url); }
+}
+
+/* ===== Подбор ===== */
+const PSTEPS = [0,1000000,1500000,2000000,2500000,3000000,4000000,5000000,7000000,10000000];
+for (const v of PSTEPS) { $("p_from").append(Object.assign(el("option", null, v ? fmt(v) : "не важно"), { value: v })); $("p_to").append(Object.assign(el("option", null, v ? fmt(v) : "не важно"), { value: v })); }
+$("p_from").value = 1500000; $("p_to").value = 3000000;
+const PB = new Set();
+chipGroup($("p_body"), [["suv","Кроссовер"],["sedan","Седан"],["hatch","Хэтчбек"],["van","Минивэн"]], PB, false, () => renderPickMatch());
+$("p_city").append(citySelect(false, renderPickMatch));
+for (const id of ["p_from","p_to"]) $(id).addEventListener("change", renderPickMatch);
+function pickMatches() { const a = +$("p_from").value || 0, b = +$("p_to").value || Infinity;
+  return DATA.cars.filter(c => !SOLD.has(c.id) && deliv(c).total >= a && deliv(c).total <= b && (!PB.size || PB.has(c.body))); }
+const carsWord = n => n % 10 === 1 && n % 100 !== 11 ? "машина" : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? "машины" : "машин";
+function renderPickMatch() {
+  const m = pickMatches(), box = $("p_match");
+  box.replaceChildren(el("b", null, m.length ? `Уже есть в каталоге: ${m.length} ${carsWord(m.length)}` : "В каталоге сейчас нет — подберём под заказ"));
+  if (m.length) { const l = el("span", "muted", m.slice(0, 4).map(c => c.name).join(", ") + (m.length > 4 ? " и другие" : "")); l.style.fontSize = "13.5px";
+    const go = el("button", "btn sec sm", "Показать в каталоге"); go.type = "button";
+    go.onclick = () => { F.body = PB.size === 1 ? [...PB][0] : "all"; bodyChips(); const b = +$("p_to").value; const i = steps.findIndex(s => s >= (b || Infinity)); budget.value = i < 0 ? steps.length - 1 : i; render(); location.hash = "catalog"; };
+    box.append(l, go); }
+}
+$("p_lead").append(leadForm("Отправить запрос на подбор", () => {
+  const a = +$("p_from").value, b = +$("p_to").value, body = [...PB].map(k => ({ suv: "кроссовер", sedan: "седан", hatch: "хэтчбек", van: "минивэн" }[k])).join(", ");
+  const bud = a || b ? `Бюджет: ${a ? "от " + fmt(a) + " " : ""}${b ? "до " + fmt(b) + " " : ""}₽` : "Бюджет: не важно";
+  return ["Запрос на подбор", bud, body ? "Кузов: " + body : "", "Когда: " + $("p_when").value, $("p_wish").value ? "Пожелания: " + $("p_wish").value : ""].filter(Boolean);
+}, () => ({ kind: "pick" })));
+
+/* ===== Избранное и сравнение ===== */
+function renderFav() {
+  const list = [...FAV].map(carById).filter(Boolean), box = $("favList");
+  if (!list.length) { box.replaceChildren(el("p", "empty", "Пока пусто. Нажмите ♡ на фото машины в каталоге — она появится здесь.")); $("cmpOut").replaceChildren(); return; }
+  box.replaceChildren(...list.map(c => {
+    const wrap = el("div", "stack"); wrap.style.gap = "6px";
+    const cmp = el("label", "tog"); const ch = el("input"); ch.type = "checkbox"; ch.checked = CMP.has(c.id);
+    ch.onchange = () => { if (ch.checked && CMP.size >= 3) { ch.checked = false; toast("Сравнить можно до трёх машин"); return; }
+      ch.checked ? CMP.add(c.id) : CMP.delete(c.id); store.set("elexcar-cmp", [...CMP]); renderCmp(); };
+    cmp.append(ch, "Сравнить");
+    const cd = card(c); cd.querySelector(".heart").onclick = e => { e.stopPropagation(); toggleFav(c.id); renderFav(); render(); };
+    wrap.append(cd, cmp); return wrap; }));
+  renderCmp();
+}
+function renderCmp() {
+  const cs = [...CMP].map(carById).filter(c => c && FAV.has(c.id)), out = $("cmpOut");
+  if (cs.length < 2) { out.replaceChildren(...(cs.length ? [el("p", "note", "Отметьте ещё одну машину, чтобы сравнить.")] : [])); return; }
+  const rows = [
+    ["", c => photoEl(c.photos[0], c.name, c.pos)],
+    ["Машина", c => c.name],
+    [CITY ? "Цена " + inCity(CITY) : "Цена под ключ", c => fmt(deliv(c).total) + " ₽", c => deliv(c).total, "min"],
+    ["Платёж в месяц", c => "≈ " + fmt(monthly(deliv(c).total, SET.loanDown, SET.loanTerm, SET.loanRate)) + " ₽", c => deliv(c).total, "min"],
+    ["Будет у вас", c => "≈ " + arriveStr(timeline(c)), c => timeline(c).min, "min"],
+    ["Год", c => c.year, c => +c.year, "max"],
+    ["Пробег", c => kmLabel(c), c => c.km, "min"],
+    ["Двигатель", c => engLabel(c)], ["Коробка", c => c.gear || "—"], ["Привод", c => c.drive || "—"],
+    ["Утильсбор", c => lg(c) ? "льготный" : "—"], ["Откуда", c => c.from],
+  ];
+  const t = el("table", "cmpt"), tb = el("tbody");
+  for (const [name, val, num, best] of rows) {
+    const tr = el("tr"); tr.append(el("th", null, name));
+    const nums = num ? cs.map(num) : null, target = nums ? (best === "min" ? Math.min(...nums) : Math.max(...nums)) : null;
+    cs.forEach((c, i) => { const td = el("td"); const v = val(c); if (typeof v === "string") td.textContent = v; else td.append(v); if (nums && nums[i] === target && new Set(nums).size > 1) td.className = "best"; tr.append(td); });
+    tb.append(tr);
+  }
+  t.append(tb); const w = el("div", "cmpw"); w.append(t);
+  const n = el("p", "note", "Зелёным — лучшее значение в строке."); n.style.marginTop = "6px";
+  out.replaceChildren(el("div", "h3", "Сравнение"), w, n);
+}
+
+/* ===== Кейсы ===== */
+let caseCity = "";
+function renderCases() {
+  const cities = [...new Set(DATA.cases.map(x => x[2]))];
+  $("caseCity").replaceChildren(...["", ...cities].map(k => { const b = el("button", "chip", k || "Все города"); b.type = "button"; b.setAttribute("aria-pressed", k === caseCity);
+    b.onclick = () => { caseCity = k; renderCases(); }; return b; }));
+  $("caseList").replaceChildren(...DATA.cases.filter(x => !caseCity || x[2] === caseCity).map(([car, who, city, price]) => {
+    const r = el("div", "case"); r.append(el("b", null, car), el("span", null, `для ${who} · ${city}`), plate(price, region(city))); return r; }));
+}
+
+/* ===== Своя машина ===== */
+for (const g of GEO) $("o_city").append(Object.assign(el("option", null, g[0]), { value: g[0] }));
+$("o_city").value = CITY || "Уссурийск";
+const ownVal = () => ({ cny: +$("o_cny").value || 0, made: $("o_date").value || "2023-01", cc: +$("o_cc").value || 0, hp: +$("o_hp").value || 0 });
+let ownLead;
+function renderOwn() {
+  const c = ownVal(), r = calcOwn(c, $("o_city").value), out = $("ownOut");
+  if (!ownLead) ownLead = leadForm("Хочу эту машину", () => { const v = ownVal(), rr = calcOwn(v, $("o_city").value); return [`Своя машина: ${$("o_url").value || "ссылка не указана"}`, `¥ ${fmt(v.cny)}, выпуск ${v.made}, ${fmt(v.cc)} см³, ${v.hp} л.с.`, `Под ключ (${rr.city[0]}) по расчёту: ${fmt(rr.total)} ₽`]; }, () => ({ kind: "own" }));
+  const w = el("div", "brk");
+  for (const [k, v, note, hot] of r.rows) { const row = el("div", "r" + (hot ? " hot" : "")); row.append(el("span", null, k), el("b", null, fmt(v) + " ₽")); if (note) row.append(el("small", null, note)); w.append(row); }
+  const s = el("div", "sum"); s.append(el("span", null, "Под ключ, " + r.city[0]), plate(r.total, r.city[4], true)); w.append(s);
+  out.replaceChildren(el("div", "age " + r.age.tone, r.age.text), w, el("p", "note", "Расчёт по примерным ставкам. Точную цену назовёт менеджер."), ownLead);
+}
+for (const id of ["o_url","o_cny","o_date","o_cc","o_hp","o_city"]) $(id).addEventListener("input", renderOwn);
+
+/* ===== Менеджер ===== */
+function renderSet() {
+  const f = $("setForm"); f.replaceChildren();
+  for (const [k, lbl, step] of SET_FIELDS) {
+    const l = el("label", null, lbl); const i = el("input"); i.type = "number"; i.step = step; i.min = 0; i.value = SET[k]; i.inputMode = "decimal"; i.id = "set_" + k;
+    i.oninput = () => { const v = parseFloat(i.value); if (!isNaN(v)) { SET[k] = v; store.set(LS, SET); refreshAll(); } };
+    l.htmlFor = i.id; l.append(i); f.append(l);
+  }
+}
+$("setReset").onclick = () => { SET = { ...DEFAULT_SET }; store.set(LS, {}); renderSet(); refreshAll(); };
+const admLine = () => `Сейчас в каталоге ${DATA.cars.length} машин из постов канала (проверено ${DATA.checked}), проданных отмечено: ${SOLD.size}.`;
+function renderAdmin() {
+  $("admCat").textContent = admLine();
+  $("soldList").replaceChildren(...DATA.cars.map(c => { const r = el("label", "sold-row"); const s = el("span", null, `${c.name} · ${fmt(c.price)} ₽`); const ch = el("input"); ch.type = "checkbox"; ch.checked = SOLD.has(c.id);
+    ch.style.cssText = "width:20px;height:20px;accent-color:var(--accent)";
+    ch.onchange = () => { ch.checked ? SOLD.add(c.id) : SOLD.delete(c.id); store.set("elexcar-sold", [...SOLD]); render(); $("admCat").textContent = admLine(); };
+    const w = el("span", "muted", "продано "); w.style.fontSize = "12.5px"; const right = el("span"); right.append(w, ch); r.append(s, right); return r; }));
+  // пример отчёта — условные цифры, только чтобы показать формат
+  const rep = $("report"), top = [...DATA.cars].sort((a, b) => a.price - b.price).slice(0, 5), views = [212, 174, 151, 98, 87];
+  const tiles = el("div", "tiles"); for (const [v, t] of [["1 486", "открытий приложения"], ["37", "заявок"], ["11", "запросов на подбор"], ["64", "раза поделились"]]) { const d = el("div"); d.append(el("b", null, v), el("span", null, t)); tiles.append(d); }
+  const bar = (name, val, max, label) => { const d = el("div"), L = el("span"), i = el("i"); i.style.width = (val / max * 100) + "%"; L.append(name, i); d.append(L, el("b", null, label)); return d; };
+  const bars = el("div", "bars"); top.forEach((c, i) => bars.append(bar(c.name, views[i], views[0], String(views[i]))));
+  const cities = el("div", "bars"); [["Екатеринбург", 31], ["Москва", 18], ["Тюмень", 12], ["Новосибирск", 9], ["Челябинск", 7]].forEach(([n, p]) => cities.append(bar(n, p, 31, p + "%")));
+  rep.replaceChildren(tiles, el("b", null, "Чаще всего смотрели"), bars, el("b", null, "Города клиентов"), cities);
+}
+
+function refreshAll() { render(); renderOwn(); if (!$("v-fav").hidden) renderFav(); if (!$("v-pick").hidden) renderPickMatch(); }
+$("cityRow").append(citySelect(true));
+$("rateLine").textContent = `Курс ЦБ на ${DATA.rates.date}: 1 ¥ = ${dec(DATA.rates.cny)} ₽, 1 € = ${dec(DATA.rates.eur)} ₽.`;
+$("catNote").textContent = `Машины и цены под ключ — из постов канала @${CFG.channel} (октябрь–ноябрь 2026). Фото — из постов канала; где в посте только видео — снимок модели с Wikimedia Commons.`;
+$("credits").textContent = "Фото моделей: " + [...new Set(DATA.cars.filter(c => c.photo_credit).map(c => c.photo_credit.replace("Фото модели: ", "")))].join("; ") + ".";
+/* ===== Живой каталог: новые посты канала, кейсы и проданные — с сервера ===== */
+const NOPHOTO = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 9"><rect width="16" height="9" fill="#262e25"/><text x="8" y="5" font-size="1.1" text-anchor="middle" fill="#9aa597" font-family="sans-serif">Фото — в посте канала</text></svg>');
+async function loadLive() {
+  if (!CFG.api) return;
+  try {
+    const r = await fetch(CFG.api + "/catalog"); if (!r.ok) return;
+    const d = await r.json(), known = new Set(DATA.cars.map(c => c.post)), week = Date.now() - 7 * 86400000;
+    for (const c of (d.cars || []).slice().reverse()) {
+      if (known.has(c.post)) continue;
+      const brand = /^mercedes/i.test(c.name) ? "Mercedes-Benz" : c.name.split(" ")[0];
+      const fuel = c.engine === "электро" ? "ev" : /гибрид/.test(c.engine) ? "hybrid" : "petrol";
+      DATA.cars.unshift({ ...c, brand, fuel, photos: c.photos && c.photos.length ? c.photos.map(id => `${CFG.api}/photo/${id}`) : [NOPHOTO], fresh: c.added && Date.parse(c.added) > week });
+    }
+    for (const x of (d.cases || []).slice().reverse()) if (x.who && !DATA.cases.some(k => k[3] === x.price && k[1] === x.who)) DATA.cases.unshift([`${x.name}${x.year ? ", " + x.year : ""}`, x.who, x.whoCity || x.city, x.price]);
+    for (const p of d.sold || []) { const c = DATA.cars.find(c => c.post === p); if (c) SOLD.add(c.id); }
+    bodyChips(); filterChips(); render(); renderCases();
+  } catch (e) {}
+}
+renderSet(); render(); renderCases(); renderOwn(); favBadge(); loadLive();
+const startCar = TG && TG.initDataUnsafe && TG.initDataUnsafe.start_param;
+show(startCar && carById(startCar) ? "car-" + startCar : location.hash.slice(1));
+track("open");
+</script>
+</body>
+</html>
